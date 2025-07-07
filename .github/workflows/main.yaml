@@ -1,0 +1,50 @@
+name: Polymarket Price Alert
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: price-alert
+  cancel-in-progress: true
+
+jobs:
+  check-price:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Grab your code
+        uses: actions/checkout@v4
+
+      - name: 🧐 List files for debugging
+        run: ls -R
+
+      - name: Restore alert state
+        uses: actions/cache/restore@v4
+        with:
+          path: alert_state.json
+          key: alert_state-v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: pip install --quiet requests
+
+      - name: Run price check
+        env:
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+        run: python polymarket_price.py
+
+      - name: Save updated alert state
+        uses: actions/cache/save@v4
+        with:
+          path: alert_state.json
+          key: alert_state-v1
