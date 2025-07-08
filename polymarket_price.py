@@ -74,7 +74,7 @@ def alert_user(asset_name, yes_price, percent_change):
     alerts_sent = []
 
     # High price alerts (above 80%)
-    if yes_price > 0.8:
+    if yes_price > 0.6:
         if not state["last_high_alert"]:
             print(f"🚨 {asset_display_name} ALERT: Price crossed above 80%!")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
@@ -85,7 +85,7 @@ def alert_user(asset_name, yes_price, percent_change):
             alerts_sent.append("high_alert")
     else:
         # Check if we should send a "falling" alert
-        if state["last_high_alert"] and yes_price <= 0.6:
+        if state["last_high_alert"] and yes_price <= 0.5:
             print(f"📉 {asset_display_name} ALERT: Price falling! Dropped to 60% or below")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
             print(f"Current {asset_display_name} change: {formated_percent_change}%")
