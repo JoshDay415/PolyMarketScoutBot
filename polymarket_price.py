@@ -11,19 +11,19 @@ import os
 # --- Configuration for assets to monitor ---
 ASSETS = {
     "ETH": {
-        "slug_template": "ethereum-up-or-down-on-july-{}",
+        "slug_template": "ethereum-up-or-down-on-{}-{}",
         "binance_symbol": "ETHUSDT"
     },
     "BTC": {
-        "slug_template": "bitcoin-up-or-down-on-july-{}",
+        "slug_template": "bitcoin-up-or-down-on-{}-{}",
         "binance_symbol": "BTCUSDT"
     },
     "XRP": {
-        "slug_template": "xrp-up-or-down-on-july-{}",
+        "slug_template": "xrp-up-or-down-on-{}-{}",
         "binance_symbol": "XRPUSDT"
     },
     "SOL": {
-        "slug_template": "solana-up-or-down-on-july-{}",
+        "slug_template": "solana-up-or-down-on-{}-{}",
         "binance_symbol": "SOLUSDT"
     }
 }
@@ -79,7 +79,8 @@ def alert_user(asset_name, yes_price, percent_change):
             print(f"🚨 {asset_display_name} ALERT: Price crossed above 80%!")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
             print(f"Current {asset_display_name} change: {formated_percent_change}%")
-            send_email(asset_display_name, yes_price, formated_percent_change, f"🚨 HIGH ALERT: {asset_display_name} Price above 80%")
+            send_email(asset_display_name, yes_price, formated_percent_change,
+                       f"🚨 HIGH ALERT: {asset_display_name} Price above 80%")
             state["last_high_alert"] = True
             alerts_sent.append("high_alert")
     else:
@@ -88,7 +89,8 @@ def alert_user(asset_name, yes_price, percent_change):
             print(f"📉 {asset_display_name} ALERT: Price falling! Dropped to 60% or below")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
             print(f"Current {asset_display_name} change: {formated_percent_change}%")
-            send_email(asset_display_name, yes_price, formated_percent_change, f"📉 FALLING ALERT: {asset_display_name} Price dropped to 60% or below")
+            send_email(asset_display_name, yes_price, formated_percent_change,
+                       f"📉 FALLING ALERT: {asset_display_name} Price dropped to 60% or below")
             state["last_high_alert"] = False
             alerts_sent.append("falling_alert")
 
@@ -98,7 +100,8 @@ def alert_user(asset_name, yes_price, percent_change):
             print(f"🚨 {asset_display_name} ALERT: Price crossed below 20%!")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
             print(f"Current {asset_display_name} change: {formated_percent_change}%")
-            send_email(asset_display_name, yes_price, formated_percent_change, f"🚨 LOW ALERT: {asset_display_name} Price below 20%")
+            send_email(asset_display_name, yes_price, formated_percent_change,
+                       f"🚨 LOW ALERT: {asset_display_name} Price below 20%")
             state["last_low_alert"] = True
             alerts_sent.append("low_alert")
     else:
@@ -107,7 +110,8 @@ def alert_user(asset_name, yes_price, percent_change):
             print(f"📈 {asset_display_name} ALERT: Price rising! Climbed to 40% or above")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
             print(f"Current {asset_display_name} change: {formated_percent_change}%")
-            send_email(asset_display_name, yes_price, formated_percent_change, f"📈 RISING ALERT: {asset_display_name} Price climbed to 40% or above")
+            send_email(asset_display_name, yes_price, formated_percent_change,
+                       f"📈 RISING ALERT: {asset_display_name} Price climbed to 40% or above")
             state["last_low_alert"] = False
             alerts_sent.append("rising_alert")
 
@@ -305,9 +309,11 @@ def process_market(asset_name, asset_config):
     """Main logic for processing a single asset market."""
     current_date = date.today()
     current_day = current_date.day
-    print(f"\n--- Checking {asset_name.upper()} prices for day {current_day} ---")
+    current_month_name = current_date.strftime("%B").lower()
 
-    slug = asset_config["slug_template"].format(current_day)
+    print(f"\n--- Checking {asset_name.upper()} prices for {current_month_name.capitalize()} {current_day} ---")
+
+    slug = asset_config["slug_template"].format(current_month_name, current_day)
     url = f"https://polymarket.com/event/{slug}"
 
     try:
