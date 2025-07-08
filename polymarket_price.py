@@ -5,18 +5,43 @@ from email.message import EmailMessage
 import requests
 import json
 import re
-from datetime import date, datetime, time
+from datetime import date, datetime
 import os
+
+# --- Configuration for assets to monitor ---
+ASSETS = {
+    "ETH": {
+        "slug_template": "ethereum-up-or-down-on-july-{}",
+        "binance_symbol": "ETHUSDT"
+    },
+    "BTC": {
+        "slug_template": "bitcoin-up-or-down-on-july-{}",
+        "binance_symbol": "BTCUSDT"
+    },
+    "XRP": {
+        "slug_template": "xrp-up-or-down-on-july-{}",
+        "binance_symbol": "XRPUSDT"
+    },
+    "SOL": {
+        "slug_template": "solana-up-or-down-on-july-{}",
+        "binance_symbol": "SOLUSDT"
+    }
+}
 
 yes_price = float
 percent_change = float
 
 
-def load_alert_state():
-    """Load the previous alert state from file"""
+def load_alert_state(asset_name):
+    """Load the previous alert state for a specific asset from file"""
     try:
         with open('alert_state.json', 'r') as f:
-            return json.load(f)
+            full_state = json.load(f)
+            return full_state.get(asset_name, {
+                "last_high_alert": False,
+                "last_low_alert": False,
+                "last_price": None
+            })
     except (FileNotFoundError, json.JSONDecodeError):
         return {
             "last_high_alert": False,
@@ -25,72 +50,79 @@ def load_alert_state():
         }
 
 
-def save_alert_state(state):
-    """Save the current alert state to file"""
+def save_alert_state(asset_name, state):
+    """Save the current alert state for a specific asset to file"""
+    try:
+        with open('alert_state.json', 'r') as f:
+            full_state = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        full_state = {}
+
+    full_state[asset_name] = state
+
     with open('alert_state.json', 'w') as f:
-        json.dump(state, f)
+        json.dump(full_state, f, indent=4)
 
 
-def alert_user(yes_price, percent_change):
+def alert_user(asset_name, yes_price, percent_change):
     formated_percent_change = "{:.2f}".format(percent_change)
 
-    # Load previous state
-    state = load_alert_state()
+    # Load previous state for the specific asset
+    state = load_alert_state(asset_name)
+    asset_display_name = asset_name.upper()
 
     alerts_sent = []
 
     # High price alerts (above 80%)
     if yes_price > 0.8:
         if not state["last_high_alert"]:
-            # First time crossing above 80%
-            print("🚨 ALERT: Price crossed above 80%!")
+            print(f"🚨 {asset_display_name} ALERT: Price crossed above 80%!")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
-            print(f"Current Eth change: {formated_percent_change}%")
-            send_email(yes_price, formated_percent_change, "🚨 HIGH ALERT: Price above 80%")
+            print(f"Current {asset_display_name} change: {formated_percent_change}%")
+            send_email(asset_display_name, yes_price, formated_percent_change, f"🚨 HIGH ALERT: {asset_display_name} Price above 80%")
             state["last_high_alert"] = True
             alerts_sent.append("high_alert")
     else:
         # Check if we should send a "falling" alert
         if state["last_high_alert"] and yes_price <= 0.6:
-            print("📉 ALERT: Price falling! Dropped to 60% or below")
+            print(f"📉 {asset_display_name} ALERT: Price falling! Dropped to 60% or below")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
-            print(f"Current Eth change: {formated_percent_change}%")
-            send_email(yes_price, formated_percent_change, "📉 FALLING ALERT: Price dropped to 60% or below")
+            print(f"Current {asset_display_name} change: {formated_percent_change}%")
+            send_email(asset_display_name, yes_price, formated_percent_change, f"📉 FALLING ALERT: {asset_display_name} Price dropped to 60% or below")
             state["last_high_alert"] = False
             alerts_sent.append("falling_alert")
 
     # Low price alerts (below 20%)
     if yes_price < 0.2:
         if not state["last_low_alert"]:
-            # First time crossing below 20%
-            print("🚨 ALERT: Price crossed below 20%!")
+            print(f"🚨 {asset_display_name} ALERT: Price crossed below 20%!")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
-            print(f"Current Eth change: {formated_percent_change}%")
-            send_email(yes_price, formated_percent_change, "🚨 LOW ALERT: Price below 20%")
+            print(f"Current {asset_display_name} change: {formated_percent_change}%")
+            send_email(asset_display_name, yes_price, formated_percent_change, f"🚨 LOW ALERT: {asset_display_name} Price below 20%")
             state["last_low_alert"] = True
             alerts_sent.append("low_alert")
     else:
         # Check if we should send a "rising" alert
         if state["last_low_alert"] and yes_price >= 0.4:
-            print("📈 ALERT: Price rising! Climbed to 40% or above")
+            print(f"📈 {asset_display_name} ALERT: Price rising! Climbed to 40% or above")
             print(f"PolyMarket YES Token @ {yes_price:.2f}c")
-            print(f"Current Eth change: {formated_percent_change}%")
-            send_email(yes_price, formated_percent_change, "📈 RISING ALERT: Price climbed to 40% or above")
+            print(f"Current {asset_display_name} change: {formated_percent_change}%")
+            send_email(asset_display_name, yes_price, formated_percent_change, f"📈 RISING ALERT: {asset_display_name} Price climbed to 40% or above")
             state["last_low_alert"] = False
             alerts_sent.append("rising_alert")
 
     # Update state with current price
     state["last_price"] = yes_price
 
-    # Save state
-    save_alert_state(state)
+    # Save state for the specific asset
+    save_alert_state(asset_name, state)
 
     if not alerts_sent:
-        print(f"No alerts needed. Price: {yes_price:.2f}c, ETH: {formated_percent_change}%")
+        print(f"No alerts needed for {asset_display_name}. Price: {yes_price:.2f}c, Change: {formated_percent_change}%")
         print(f"State: High alert active: {state['last_high_alert']}, Low alert active: {state['last_low_alert']}")
 
 
-def send_email(yes_price, formated_percent_change, alert_type):
+def send_email(asset_name, yes_price, formated_percent_change, alert_type):
     email_body = f"""
         POLYMARKET PRICE ALERT
 
@@ -98,7 +130,7 @@ def send_email(yes_price, formated_percent_change, alert_type):
 
         CURRENT YES PRICE: {yes_price:.2f} cents
 
-        Current Eth position: {formated_percent_change}% 
+        Current {asset_name} position: {formated_percent_change}% 
 
         Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         """
@@ -122,16 +154,12 @@ def send_email(yes_price, formated_percent_change, alert_type):
             server.starttls()
             server.login(from_email, app_password)
             server.send_message(msg)
-            print("Email sent successfully!")
+            print(f"Email for {asset_name} sent successfully!")
     except smtplib.SMTPException as e:
-        print(f"Failed to send email: {e}")
+        print(f"Failed to send email for {asset_name}: {e}")
 
 
-
-def get_ethereum_prices_binance():
-    # The trading pair for Ethereum and Tether USD
-    symbol = 'ETHUSDT'
-
+def get_binance_prices(symbol):
     current_price_url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
     klines_url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1d&limit=1"
 
@@ -157,10 +185,10 @@ def get_ethereum_prices_binance():
         }
 
     except requests.exceptions.RequestException as e:
-        print(f"An error occurred while communicating with the Binance API: {e}")
+        print(f"An error occurred while communicating with the Binance API for {symbol}: {e}")
         return None
     except (KeyError, IndexError, TypeError) as e:
-        print(f"An error occurred while parsing the API response: {e}")
+        print(f"An error occurred while parsing the API response for {symbol}: {e}")
         return None
 
 
@@ -273,12 +301,14 @@ def get_token_price(token_id):
         return None
 
 
-def main():
+def process_market(asset_name, asset_config):
+    """Main logic for processing a single asset market."""
     current_date = date.today()
     current_day = current_date.day
-    print(f"Checking prices for day {current_day}")
+    print(f"\n--- Checking {asset_name.upper()} prices for day {current_day} ---")
 
-    url = f"https://polymarket.com/event/ethereum-up-or-down-on-july-{current_day}?tid=1751853495589"
+    slug = asset_config["slug_template"].format(current_day)
+    url = f"https://polymarket.com/event/{slug}"
 
     try:
         market = get_market_data(url)
@@ -297,19 +327,19 @@ def main():
             return
 
     except Exception as e:
-        print(f"Error fetching market data: {e}")
+        print(f"Error fetching market data for {asset_name}: {e}")
         return
 
-    print("Getting ETH price...")
-    eth_price = get_ethereum_prices_binance()
+    print(f"Getting {asset_name.upper()} price from Binance...")
+    price_data = get_binance_prices(asset_config["binance_symbol"])
 
-    if eth_price:
-        print(f"\nToday's Open Price (UTC): ${eth_price['open_price']:,.2f}")
-        print(f"Current Price:            ${eth_price['current_price']:,.2f}")
+    if price_data:
+        print(f"Today's Open Price (UTC): ${price_data['open_price']:,.2f}")
+        print(f"Current Price:            ${price_data['current_price']:,.2f}")
 
-        if eth_price['open_price'] is not None:
-            change = eth_price['current_price'] - eth_price['open_price']
-            percent_change = (change / eth_price['open_price']) * 100
+        if price_data['open_price'] is not None:
+            change = price_data['current_price'] - price_data['open_price']
+            percent_change = (change / price_data['open_price']) * 100
 
             if change >= 0:
                 print(f"Day's Change:             +${change:,.2f} ({percent_change:+.2f}%)")
@@ -317,11 +347,17 @@ def main():
                 print(f"Day's Change:             -${abs(change):,.2f} ({percent_change:.2f}%)")
 
             # Check for alerts
-            alert_user(yes_price, percent_change)
+            alert_user(asset_name, yes_price, percent_change)
         else:
-            print("Could not calculate ETH price change")
+            print(f"Could not calculate {asset_name.upper()} price change")
     else:
-        print("Failed to fetch ETH price data")
+        print(f"Failed to fetch {asset_name.upper()} price data")
+
+
+def main():
+    """Iterate over all configured assets and process them."""
+    for asset_name, asset_config in ASSETS.items():
+        process_market(asset_name, asset_config)
 
 
 if __name__ == "__main__":
