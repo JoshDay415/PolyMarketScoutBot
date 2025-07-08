@@ -105,6 +105,7 @@ def send_email(yes_price, formated_percent_change, alert_type):
 
     from_email = os.environ.get('EMAIL_FROM')
     app_password = os.environ.get('EMAIL_APP_PASSWORD')
+    to_email = os.environ.get('EMAIL_TO')
 
     if not from_email or not app_password:
         print("ERROR: Email credentials not found in environment variables")
@@ -113,7 +114,7 @@ def send_email(yes_price, formated_percent_change, alert_type):
     msg = EmailMessage()
     msg['subject'] = f"PolyMarket Alert: {alert_type}"
     msg['from'] = from_email
-    msg['to'] = "dayjosh415@gmail.com"
+    msg['to'] = to_email
     msg.set_content(email_body)
 
     try:
@@ -126,7 +127,6 @@ def send_email(yes_price, formated_percent_change, alert_type):
         print(f"Failed to send email: {e}")
 
 
-# ... rest of your existing functions remain the same ...
 
 def get_ethereum_prices_binance():
     # The trading pair for Ethereum and Tether USD
