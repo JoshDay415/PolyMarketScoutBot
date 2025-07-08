@@ -64,7 +64,7 @@ def save_alert_state(asset_name, state):
         json.dump(full_state, f, indent=4)
 
 
-def alert_user(asset_name, yes_price, percent_change):
+def alert_user(asset_name, yes_price, percent_change, market_url):
     formated_percent_change = "{:.2f}".format(percent_change)
 
     # Load previous state for the specific asset
@@ -72,48 +72,49 @@ def alert_user(asset_name, yes_price, percent_change):
     asset_display_name = asset_name.upper()
 
     alerts_sent = []
+    alert_type = None
+    alert_color = None
 
     # High price alerts (above 80%)
     if yes_price > 0.8:
         if not state["last_high_alert"]:
-            print(f"🚨 {asset_display_name} ALERT: Price crossed above 80%!")
-            print(f"PolyMarket YES Token @ {yes_price:.2f}c")
-            print(f"Current {asset_display_name} change: {formated_percent_change}%")
-            send_email(asset_display_name, yes_price, formated_percent_change,
-                       f"🚨 HIGH ALERT: {asset_display_name} Price above 80%")
+            alert_type = f"🚨 HIGH ALERT: {asset_display_name} Price above 80%"
+            alert_color = 15158332  # Red
             state["last_high_alert"] = True
             alerts_sent.append("high_alert")
     else:
         # Check if we should send a "falling" alert
         if state["last_high_alert"] and yes_price <= 0.6:
-            print(f"📉 {asset_display_name} ALERT: Price falling! Dropped to 60% or below")
-            print(f"PolyMarket YES Token @ {yes_price:.2f}c")
-            print(f"Current {asset_display_name} change: {formated_percent_change}%")
-            send_email(asset_display_name, yes_price, formated_percent_change,
-                       f"📉 FALLING ALERT: {asset_display_name} Price dropped to 60% or below")
+            alert_type = f"📉 FALLING ALERT: {asset_display_name} Price dropped to 60% or below"
+            alert_color = 15105570  # Orange
             state["last_high_alert"] = False
             alerts_sent.append("falling_alert")
 
     # Low price alerts (below 20%)
     if yes_price < 0.2:
         if not state["last_low_alert"]:
-            print(f"🚨 {asset_display_name} ALERT: Price crossed below 20%!")
-            print(f"PolyMarket YES Token @ {yes_price:.2f}c")
-            print(f"Current {asset_display_name} change: {formated_percent_change}%")
-            send_email(asset_display_name, yes_price, formated_percent_change,
-                       f"🚨 LOW ALERT: {asset_display_name} Price below 20%")
+            alert_type = f"🚨 LOW ALERT: {asset_display_name} Price below 20%"
+            alert_color = 15158332  # Red
             state["last_low_alert"] = True
             alerts_sent.append("low_alert")
     else:
         # Check if we should send a "rising" alert
         if state["last_low_alert"] and yes_price >= 0.4:
-            print(f"📈 {asset_display_name} ALERT: Price rising! Climbed to 40% or above")
-            print(f"PolyMarket YES Token @ {yes_price:.2f}c")
-            print(f"Current {asset_display_name} change: {formated_percent_change}%")
-            send_email(asset_display_name, yes_price, formated_percent_change,
-                       f"📈 RISING ALERT: {asset_display_name} Price climbed to 40% or above")
+            alert_type = f"📈 RISING ALERT: {asset_display_name} Price climbed to 40% or above"
+            alert_color = 3066993  # Green
             state["last_low_alert"] = False
             alerts_sent.append("rising_alert")
+
+    # If an alert was triggered, send notifications
+    if alert_type:
+        print(alert_type)
+        print(f"PolyMarket YES Token @ {yes_price:.2f}c")
+        print(f"Current {asset_display_name} change: {formated_percent_change}%")
+
+        # Send notifications
+        send_email(asset_display_name, yes_price, formated_percent_change, alert_type)
+        send_discord_notification(asset_display_name, yes_price, formated_percent_change, alert_type, alert_color,
+                                  market_url)
 
     # Update state with current price
     state["last_price"] = yes_price
@@ -161,6 +162,47 @@ def send_email(asset_name, yes_price, formated_percent_change, alert_type):
             print(f"Email for {asset_name} sent successfully!")
     except smtplib.SMTPException as e:
         print(f"Failed to send email for {asset_name}: {e}")
+
+
+def send_discord_notification(asset_name, yes_price, formated_percent_change, alert_type, color, market_url):
+    """Sends a formatted notification to a Discord webhook."""
+    webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+
+    if not webhook_url:
+        print("ERROR: Discord webhook URL not found in environment variables")
+        return
+
+    # Construct the rich embed for Discord
+    discord_payload = {
+        "embeds": [
+            {
+                "title": f"PolyMarket Alert: {asset_name}",
+                "description": alert_type,
+                "color": color,
+                "fields": [
+                    {
+                        "name": "Market Price",
+                        "value": f"{yes_price:.2f}¢",
+                        "inline": True
+                    },
+                    {
+                        "name": f"{asset_name} Daily Change",
+                        "value": f"{formated_percent_change}%",
+                        "inline": True
+                    }
+                ],
+                "url": market_url,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(webhook_url, json=discord_payload)
+        response.raise_for_status()
+        print(f"Discord notification for {asset_name} sent successfully!")
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to send Discord notification for {asset_name}: {e}")
 
 
 def get_binance_prices(symbol):
@@ -353,7 +395,7 @@ def process_market(asset_name, asset_config):
                 print(f"Day's Change:             -${abs(change):,.2f} ({percent_change:.2f}%)")
 
             # Check for alerts
-            alert_user(asset_name, yes_price, percent_change)
+            alert_user(asset_name, yes_price, percent_change, url)
         else:
             print(f"Could not calculate {asset_name.upper()} price change")
     else:
