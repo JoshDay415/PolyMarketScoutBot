@@ -1,0 +1,22 @@
+{
+    "ETH": {
+        "last_high_alert": false,
+        "last_low_alert": false,
+        "last_price": null
+    },
+    "BTC": {
+        "last_high_alert": false,
+        "last_low_alert": false,
+        "last_price": null
+    },
+    "XRP": {
+        "last_high_alert": false,
+        "last_low_alert": false,
+        "last_price": null
+    },
+    "SOL": {
+        "last_high_alert": false,
+        "last_low_alert": false,
+        "last_price": null
+    }
+}
